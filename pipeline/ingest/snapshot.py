@@ -8,7 +8,8 @@ import duckdb
 import pandas as pd
 
 from pipeline.ingest.contract import (
-    INPUT_SCHEMA, KEYS, NUMERIC, RATE_UNITS, TRANSFORM_VERSION, validate_header, validate_rows,
+    INPUT_SCHEMA, KEYS, NUMERIC, RATE_UNITS, TRANSFORM_VERSION,
+    validate_header, validate_rows, validate_whole_numbers,
 )
 from pipeline.io import (
     ContractError, IDENTIFIER, SHA256, digest, iso_utc, local_filename, matches, outside_git,
@@ -112,6 +113,7 @@ def read_rows(payload, row_count, roster):
         raise ContractError("malformed CSV or missing UTF-8 header") from None
     if any(len(record) != len(columns) for record in records):
         raise ContractError("malformed CSV or incompatible row width")
+    validate_whole_numbers(columns, records)
     text_columns = [f"nullif(trim({name}), '') as {name}" for name in columns if name not in KEYS]
     typed_columns = [
         f"try_cast({name} as double) as {name}, {name} as text_{name}" if name in NUMERIC else name

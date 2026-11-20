@@ -14,13 +14,15 @@ from pipeline.io import ContractError, digest, iso_utc, json_bytes, new_output_d
 DEFAULT_SEED = 20261120
 CUTOFF = datetime(2025, 2, 1, tzinfo=UTC)
 CLIENT_SIZES = (8, 19, 37, 51, 65, 81, 95, 106, 14, 28, 46, 56, 73, 84, 109, 124)
+BENCHMARK_CLIENT_SIZES = (938,) * 16 + (937,) * 16
 
 
-def fixture_rows(seed):
+def fixture_rows(seed, *, benchmark=False):
     rng = random.Random(seed)
     rows = []
-    clients = [f"demo-client-{index:02d}" for index in range(len(CLIENT_SIZES))]
-    for index, (client, size) in enumerate(zip(clients, CLIENT_SIZES, strict=True)):
+    sizes = BENCHMARK_CLIENT_SIZES if benchmark else CLIENT_SIZES
+    clients = [f"demo-client-{index:02d}" for index in range(len(sizes))]
+    for index, (client, size) in enumerate(zip(clients, sizes, strict=True)):
         client_shift = rng.uniform(-0.09, 0.09)
         for item in range(size):
             latent = rng.random()
@@ -66,6 +68,8 @@ def fixture_rows(seed):
             row = rows[-1]
             if sessions:
                 row["ai_traffic_pct"] = round(100 * row["ai_sessions_90d"] / sessions, 2)
+    if benchmark:
+        return rows, clients
     # A declared client without rows and a client with a too-young page exercise separate coverage cases.
     rows.append({**rows[0], "client_id": "demo-client-ineligible", "content_age_days": 45, "age_tier": "31-90",
                  "days_since_last_update": 20, "freshness_tier": "0-30"})
@@ -98,11 +102,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--seed", default=DEFAULT_SEED, type=int)
+    parser.add_argument("--benchmark", action="store_true", help="Generate 30,000 eligible items across 32 clients.")
     args = parser.parse_args()
-    rows, clients = fixture_rows(args.seed)
+    rows, clients = fixture_rows(args.seed, benchmark=args.benchmark)
+    snapshot_id = f"synthetic-benchmark-seed-{args.seed}" if args.benchmark else f"synthetic-seed-{args.seed}"
     try:
         with new_output_directory(args.output_dir) as directory:
-            write_snapshot(directory, rows, clients, snapshot_id=f"synthetic-seed-{args.seed}",
+            write_snapshot(directory, rows, clients, snapshot_id=snapshot_id,
                            source_release="generated-fixtures-v1")
     except ContractError as error:
         parser.exit(1, f"Fixture generation failed: {error}\n")

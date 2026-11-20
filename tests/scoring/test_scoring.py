@@ -32,6 +32,8 @@ def test_cli_reloads_pinned_model_and_writes_deterministic_rankings(evaluated_bu
     assert first_receipt["model"]["manifest_sha256"] == digest(evaluated_bundle["model_manifest"].read_bytes())
     assert first_receipt["input"]["manifest_sha256"] == digest(evaluated_bundle["snapshot"].read_bytes())
     assert first_receipt["empty_clients"] == 2
+    assert first_receipt["stage_duration_seconds"].keys() == {"verify_model", "load_snapshot", "build_features", "rank_and_write"}
+    assert all(seconds >= 0 for seconds in first_receipt["stage_duration_seconds"].values())
     ranks = pd.read_csv(first / RANKS_FILE)
     assert len(ranks) == first_receipt["eligible_rows"] == 996
     assert not ranks.duplicated(["client_id", "content_id"]).any()
@@ -53,7 +55,9 @@ def test_tampered_bundle_cli_exits_with_failed_receipt_only(evaluated_bundle, tm
     assert result.returncode == 1
     assert "SHA-256 differs" in result.stderr
     assert list(output.iterdir()) == [output / RECEIPT_FILE]
-    assert json.loads((output / RECEIPT_FILE).read_bytes())["status"] == "failed"
+    receipt = json.loads((output / RECEIPT_FILE).read_bytes())
+    assert receipt["status"] == "failed"
+    assert set(receipt["stage_duration_seconds"]) == {"verify_model"}
 
 
 @pytest.mark.parametrize(("change", "message"), [

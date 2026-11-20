@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 
 from pipeline.io import ContractError
 
@@ -79,6 +80,28 @@ def validate_header(columns):
         raise ContractError(f"missing required CSV fields: {', '.join(sorted(missing))}")
 
 
+def is_whole_number(value):
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        return False
+    return number.is_finite() and number == number.to_integral_value()
+
+
+def validate_whole_numbers(columns, records):
+    # Check the source text because conversion to DOUBLE can erase a fractional part.
+    invalid = []
+    for index, name in enumerate(columns):
+        bounds = NUMERIC.get(name)
+        if bounds is None or not bounds.whole:
+            continue
+        values = (record[index].strip() for record in records)
+        if any(value and not is_whole_number(value) for value in values):
+            invalid.append(name)
+    if invalid:
+        raise ContractError(f"invalid row fields: {', '.join(invalid)}")
+
+
 def validate_rows(db, columns, row_count, clients):
     checks = {}
     for key in KEYS:
@@ -91,8 +114,6 @@ def validate_rows(db, columns, row_count, clients):
         conditions = [f"{name} is null", f"not isfinite({name})", f"{name} < {bounds.minimum}"]
         if bounds.maximum is not None:
             conditions.append(f"{name} > {bounds.maximum}")
-        if bounds.whole:
-            conditions.append(f"{name} <> trunc({name})")
         checks[name] = f"text_{name} is not null and ({' or '.join(conditions)})"
     for name, values in CATEGORIES.items():
         if name in columns:
