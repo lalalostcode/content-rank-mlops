@@ -1,0 +1,17 @@
+data/
+raw/
+artifacts/
+mlruns/
+.env
+.env.*
+!.env.example
+*.parquet
+*.duckdb
+*.csv
+*.pem
+.venv/
+__pycache__/
+node_modules/
+target/
+dist/
+paul-reference/

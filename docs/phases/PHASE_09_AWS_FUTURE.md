@@ -1,0 +1,3 @@
+# Phase 9 — AWS Cloud Deployment (Deferred)
+
+Separate proposal after Phase 8 and explicit deployment approval. Estimate per-month RDS, ECS, NAT, logging and storage costs, set budget alarms and agree teardown ownership before provisioning. Design Terraform state isolation, private subnets for RDS and workers, scoped IAM roles, Secrets Manager rotation, versioned S3 artifact storage, immutable ECR images and ECS tasks. Use short-lived CI identity, CloudWatch run alerts, encrypted backups and tested restore. Validate network isolation and rollback in a synthetic-only environment. No paid resource is required for the portfolio MVP.
