@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-Each linked phase has two ordered iterations. Commands for future modules are planned verification commands. Phase 5 delivers the first integrated analyst MVP. Phase 8 delivers the public portfolio.
+Each linked phase has two ordered iterations. Commands for future modules are planned verification commands. Phase 5 delivers the first integrated analyst MVP using actual batch scores from authorized local data. Phase 6 adds MLflow Registry and Prefect to the verified local scoring path. Phase 8 delivers the public portfolio.
 
 - [Phase 0 · repository audit](../phases/PHASE_00_REPOSITORY_AUDIT.md)
 - [Phase 1 · architecture](../phases/PHASE_01_ARCHITECTURE.md)

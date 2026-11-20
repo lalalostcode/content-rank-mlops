@@ -10,9 +10,11 @@ The requested workspace was absent on discovery. Created the main repository and
 |Paul reference|Clone verified via Git revision; services unverified|
 |API, frontend, Python pipeline, migrations, tests, Compose, CI|Missing on discovery; planned in phases 2–7. No existing project tests to run|
 |Runtime dependency manifests and locks|Missing; dependency compatibility unverified. Introduce pinned Python lock, Maven wrapper and npm lock with owning module|
-|CLI probes|Git 2.48.1, Java 17.0.21, Node 22.14, uv 0.9.8, Compose 2.34.0. Managed Python 3.13.9 launches by absolute path; default python alias failed. Maven absent from PATH|
-|Container integration|Blocked during audit. Docker Desktop Linux engine pipe unavailable|
+|CLI probes|Git 2.48.1, JDK and javac 17.0.21, Node 22.14.0, npm 10.9.2, uv 0.9.8 and Compose 2.34.0. The Store python alias failed. The installed 3.13.9 interpreter ran by absolute path and the uv no-cache probe located it. Maven is absent from PATH and the project wrapper is planned for Phase 4|
+|Container integration|Blocked in the audited shell. The desktop-linux context points to an unavailable Docker Engine pipe. The WSL status probe in that shell reported that WSL was missing|
 |Warehouse|Gated; user authorization unverified|
+
+The Windows bootstrap records the remedies and database setup for Phase 4–5. [Local bootstrap](../LOCAL_BOOTSTRAP.md)
 
 ## Iteration 0.1 · Inventory the workspace
 

@@ -8,7 +8,7 @@ Prioritize a limited number of editorial investigations per client using reprodu
 
 ## 2. Project Background
 
-The internship capstone compared a rule with a fixed blend on client-grouped folds. Historical mean fold P@50 was 92.4% versus 46.4%. The new platform has no measured ranking result. [Historical report](https://github.com/lalalostcode/FlyrankAI_ML/blob/main/work/capstone_report.md)
+The internship capstone measured P@50 on the pooled top 50 items in each held-out fold, then averaged the five fold values equally. The historical blend scored 92.4% and the rule scored 46.4% under that protocol. The platform evaluates each client's queue independently and requires fresh validation. Reproduction of the historical score remains unverified. [Historical report](https://github.com/lalalostcode/FlyrankAI_ML/blob/main/work/capstone_report.md)
 
 ## 3. Business Problem
 
@@ -40,11 +40,13 @@ Content analyst owns review decisions. ML operator validates releases and runs. 
 
 ## 10. Data Requirements and Governance
 
-Use authorized snapshots with cutoff, checksum and schema revision. [Governance](../governance/DATA_GOVERNANCE.md)
+Use authorized snapshots with cutoff, checksum and schema revision. A single snapshot supports queue ranking and analyst review. Show follow-up as unavailable until the same item has a comparable observation from a post-action window. Display both observation cutoffs and source provenance when comparing values. [Governance](../governance/DATA_GOVERNANCE.md) · [Analyst journey](USER_JOURNEYS.md)
 
 ## 11. Machine Learning Requirements
 
-Binary relevance is observed trend_direction=down. Exclude identifiers, trend fields, product decisions and overlapping window features that reconstruct the label. Audit missingness by content type. Freeze seeded final client holdout before development. Within remaining clients use five GroupKFold folds, fit preprocessing only on training clients and order contiguous query groups by client. Compare a fixed documented editorial rule, base and engineered LightGBM LambdaRank, and fixed equal average of within-client percentile ranks. Fix tie-break on content ID. Tune on development folds only. Freeze candidate before one final evaluation. For each nonempty client divide hits by min(K,n) at K=10,25,50. Average client metrics equally. Report undersized and empty counts. Binary NDCG uses the same cutoff, zero for no relevant items with count reported. Report client-level misses and rule deltas. Ranking scores are ordinal. A future authorized temporal backtest must split by cutoff and isolate outcome windows.
+Binary relevance is observed `trend_direction=down`. Exclude identifiers, trend fields, product decisions and overlapping windows that reconstruct the label. Audit missingness by content type. Freeze a seeded final client holdout before development. Use five GroupKFold splits on the remaining clients, fit preprocessing on training clients and use contiguous client query groups for LambdaRank. Compare the fixed rule, base and engineered LambdaRank and their equal-weight blend on the same eligible items.
+
+The capstone blended fold-level percentiles. The platform computes each component's percentile within a client's eligible inventory before averaging the two ranks. Use average ranks for score ties and content ID for final ordering ties. This changes the blend and requires fresh validation. Compute P@10, P@25 and P@50 per nonempty client using `min(K, eligible count)` as denominator, then average clients equally. Compute binary NDCG on the same cutoff. Tune only on development folds and evaluate the frozen candidate once on the final holdout. Ranking scores express order. A future authorized temporal backtest must split by cutoff and isolate outcome windows. [Evaluation protocol and reporting rules](../phases/PHASE_03_MACHINE_LEARNING.md#evaluation-protocol)
 
 ## 12. Frontend Requirements
 
@@ -52,7 +54,7 @@ React/Vite supports keyboard navigation, client-scoped filters, loading, stale d
 
 ## 13. Backend Requirements
 
-Spring Boot owns authorization, review lifecycle and query DTOs. Separate controllers, services and JPA repositories. Flyway migrations run before readiness.
+Spring Boot owns authorization, the review case lifecycle and query DTOs. Track review state per case and retain terminal cases in immutable history. A qualifying issue from a newer observation cutoff can start another case. Separate controllers, services and JPA repositories. Flyway migrations run before readiness. [Review lifecycle and persistence](../architecture/DATABASE_DESIGN.md)
 
 ## 14. REST API Specification
 
@@ -64,7 +66,9 @@ Spring Boot owns authorization, review lifecycle and query DTOs. Separate contro
 
 ## 16. MLOps Architecture
 
-Log dataset and code digests, feature revision, split IDs, seeds, metrics and bundle in MLflow. Pin immutable registry version per run. Prefect retries transient IO with bounded backoff. Promote only after development evidence beats rule on macro P@50, client regressions are reviewed and untouched evaluation recorded. A failed final check retains the rule and requires a fresh holdout for subsequent selection.
+For Phases 3–5, train and score using reproducible local commands. The scoring CLI loads a pinned local artifact and verifies its SHA-256 digest and feature schema version before scoring. PostgreSQL records the model ID, artifact digest, schema version, snapshot lineage and scoring run metadata. The local publisher commits verified ranks and their published pointer atomically.
+
+Phase 6 adds MLflow experiment tracking and registry operations, plus Prefect orchestration with bounded retries. Register the same verified bundle format and pin the resolved version per run. Promote after development evidence beats the rule on macro P@50, client regressions are reviewed and the frozen candidate passes final evaluation. Keep the rule as a fallback if the learned candidate fails and require a fresh holdout for subsequent selection. The Product MVP requires a validated learned model. [Phase 6](../phases/PHASE_06_MLOPS.md)
 
 ## 17. Monitoring and Observability
 
@@ -80,7 +84,7 @@ Loopback-only single-user MVP. Isolate database roles and keep secrets in runtim
 
 ## 20. Local Deployment Requirements
 
-Compose creates private service network and persistent stores. Start database, migrate, start API, then dashboard. Seed synthetic fixtures for clean-room testing. Restore a backup into a fresh volume and compare history and published pointer.
+For Phase 4–5 integration, start local PostgreSQL, apply Flyway migrations, then start Spring Boot and React. Use synthetic fixtures for clean-room development tests and authorized local inputs for Product MVP verification. Phase 7 packages the full local stack in Compose and verifies recovery to a fresh volume. [Local bootstrap](../LOCAL_BOOTSTRAP.md)
 
 ## 21. Public Demo Requirements
 
@@ -104,11 +108,11 @@ ADRs 001–005 document backend, inference, persistence, orchestration and demon
 
 ## 26. Acceptance Criteria
 
-Pass the acceptance check for each Must requirement and each phase gate. Retain reports with environment and commit.
+Pass the acceptance check for each Must requirement and the applicable phase gates. The Phase 5 Product MVP must produce a live queue through authorized local data → feature engineering → trained model artifact → actual batch scoring → PostgreSQL → Spring Boot REST API → React dashboard → persistent analyst review. Retain evidence that ties the displayed ranking and saved review to that scoring run. Synthetic fixtures support development, unit tests and the public demo. [Product MVP acceptance test](../phases/PHASE_05_DASHBOARD.md#product-mvp-end-to-end-acceptance-test)
 
 ## 27. Definition of Done
 
-A second developer reproduces the local journey on synthetic inputs, runs CI-equivalent tests, restores history, and traces a rank to its artifact. Publish limitations and separate historical, synthetic and validated results.
+A second developer reproduces the Product MVP journey on authorized local data and traces a displayed rank to its model artifact. Run CI-equivalent tests on synthetic fixtures and verify history after a restore during Phase 7. Report historical, synthetic and validated results with their protocols and limitations.
 
 ## 28. Future Cloud Expansion
 

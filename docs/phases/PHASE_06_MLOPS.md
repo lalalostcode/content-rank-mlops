@@ -4,7 +4,7 @@
 
 - **Objective and scope** — Track and promote models.
 - **Prerequisite** — Phase 5 exit gate.
-- **Tasks** — Wrap training CLI with MLflow logging and Optuna grouped development search. Evaluate promotion policy and register immutable version.
+- **Tasks** — Wrap the established training CLI with MLflow logging and Optuna grouped development search. Apply promotion policy and register an immutable version of the verified bundle. Resolve any registry alias once at run start and verify the downloaded bundle against its pinned digest and feature schema. Preserve local model ID and lineage in PostgreSQL.
 - **Expected files and deliverable** — pipeline/experiments/, tests/registry/.
 - **Verification command** — `uv run pytest tests/registry` from project root in PowerShell.
 - **Automated test and acceptance criterion** — Artifact reload reproduces predictions and failed gate leaves prior champion.
@@ -15,7 +15,7 @@
 
 - **Objective and scope** — Automate atomic batch publication.
 - **Prerequisite** — 6.1.
-- **Tasks** — Compose Prefect ingestion/scoring tasks, stage rows, check counts and advance published pointer transactionally. Exercise manual trigger, schedule, retries and older run completion.
+- **Tasks** — Orchestrate the Phase 5 ingestion, scorer and transactional publisher with Prefect. Add scheduled and manual triggers with bounded retries. Exercise older run completion and confirm both execution paths use the same run schema and publish rules.
 - **Expected files and deliverable** — pipeline/flows/, tests/publication/.
 - **Verification command** — `uv run pytest tests/publication` from project root in PowerShell.
 - **Automated test and acceptance criterion** — Crash, retry and concurrent publish preserve one complete current queue.

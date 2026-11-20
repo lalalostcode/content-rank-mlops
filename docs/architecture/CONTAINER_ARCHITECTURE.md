@@ -3,7 +3,8 @@
 ```mermaid
 flowchart LR
  React -->|JSON REST| Spring --> Postgres
- Prefect --> Python -->|publish transaction| Postgres
+ Operator -->|local CLI| Python -->|publish transaction| Postgres
  Python <--> DuckDB
- Python <--> MLflow
+ Prefect[Prefect · Phase 6] --> Python
+ Python <--> Registry[MLflow Registry · Phase 6]
 ```
