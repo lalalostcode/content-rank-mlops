@@ -41,8 +41,11 @@ def parse_object(payload, kind):
             raise ValueError("duplicate JSON key")
         return obj
 
+    def invalid_constant(token):
+        raise ValueError(f"invalid JSON constant {token}")
+
     try:
-        obj = json.loads(payload, object_pairs_hook=unique_pairs)
+        obj = json.loads(payload, object_pairs_hook=unique_pairs, parse_constant=invalid_constant)
     except (UnicodeError, ValueError):
         raise ContractError(f"invalid {kind} JSON") from None
     if not isinstance(obj, dict):

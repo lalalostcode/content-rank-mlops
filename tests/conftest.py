@@ -21,3 +21,18 @@ def make_snapshot(tmp_path):
         return path
 
     return write
+
+
+@pytest.fixture(scope="session")
+def evaluated_bundle(tmp_path_factory, generated_rows):
+    from pipeline.training.run import develop, evaluate_final
+
+    root = tmp_path_factory.mktemp("verified-model")
+    rows, clients = generated_rows
+    snapshot = write_snapshot(root, rows, clients, snapshot_id="fixture", source_release="pytest")
+    frozen = root / "development"
+    final = root / "final"
+    develop(snapshot, frozen, seed=42)
+    evaluate_final(snapshot, frozen / "frozen-model-manifest.json", frozen, final)
+    return {"snapshot": snapshot, "frozen": frozen, "final": final,
+            "model_manifest": final / "model-manifest.json"}

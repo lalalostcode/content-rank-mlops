@@ -31,7 +31,10 @@ def windows_at(cutoff):
 
 
 def validate_windows(windows, cutoff):
-    expected = windows_at(cutoff)
+    try:
+        expected = windows_at(cutoff)
+    except OverflowError:
+        raise ContractError("cutoff is out of range for the observation windows") from None
     if not isinstance(windows, dict) or windows.keys() != expected.keys():
         raise ContractError("manifest must declare all three observation windows")
     for name, bounds in windows.items():
@@ -43,17 +46,21 @@ def validate_windows(windows, cutoff):
     return expected
 
 
+def validate_retention(value, *, minimum):
+    try:
+        retention = date.fromisoformat(value)
+    except (TypeError, ValueError):
+        raise ContractError("retention date must be an ISO date") from None
+    if retention < max(minimum, datetime.now(UTC).date()):
+        raise ContractError("restricted input approval has expired")
+
+
 def validate_approval(approval, cutoff):
     if not isinstance(approval, dict) or set(approval) != {"reference", "purpose", "retention_until"}:
         raise ContractError("restricted input requires an approval reference, purpose and retention date")
     if not all(isinstance(approval[key], str) and approval[key].strip() for key in approval):
         raise ContractError("restricted input approval fields must be nonempty")
-    try:
-        retention = date.fromisoformat(approval["retention_until"])
-    except ValueError:
-        raise ContractError("retention date must be an ISO date") from None
-    if retention < max(cutoff.date(), datetime.now(UTC).date()):
-        raise ContractError("restricted input approval has expired")
+    validate_retention(approval["retention_until"], minimum=cutoff.date())
 
 
 def validate_manifest(manifest, path):
@@ -123,10 +130,12 @@ def read_rows(payload, row_count, roster):
     return rows.astype(dict.fromkeys(set(columns) - NUMERIC.keys(), "string")), clients
 
 
-def load_snapshot(path):
+def load_snapshot(path, *, expected_kind=None):
     path = Path(path).resolve()
     manifest_bytes = read_bytes(path, "input manifest")
     manifest = parse_object(manifest_bytes, "input manifest")
+    if expected_kind is not None and manifest.get("kind") != expected_kind:
+        raise ContractError("snapshot and bundle must both be synthetic or both be restricted")
     dataset_path, cutoff, windows, roster = validate_manifest(manifest, path)
     payload = read_bytes(dataset_path, "snapshot CSV")
     if digest(payload) != manifest["sha256"]:
@@ -137,4 +146,6 @@ def load_snapshot(path):
         "kind": manifest["kind"], "input_schema": INPUT_SCHEMA, "dataset_sha256": manifest["sha256"],
         "manifest_sha256": digest(manifest_bytes), "cutoff": iso_utc(cutoff), "windows": windows,
     }
+    if manifest["kind"] == "restricted":
+        identity["retention_until"] = manifest["approval"]["retention_until"]
     return Snapshot(identity, rows, clients)

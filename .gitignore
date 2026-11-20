@@ -9,6 +9,15 @@ mlruns/
 *.parquet
 *.duckdb
 *.csv
+input-manifest.json
+ranker-bundle.json
+frozen-model-manifest.json
+model-manifest.json
+feature-receipt.json
+run-receipt.json
+split.json
+development.json
+final-evaluation.json
 *.pem
 .venv/
 __pycache__/
