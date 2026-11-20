@@ -65,6 +65,8 @@ def validate_approval(approval, cutoff):
 
 
 def validate_manifest(manifest, path):
+    if manifest.get("status") == "pending" and "draft_input_manifest" in manifest:
+        raise ContractError("input manifest is pending source cutoff and release approval")
     required = {
         "manifest_version", "snapshot_id", "source_release", "kind", "input_schema", "transform_version",
         "dataset", "sha256", "row_count", "cutoff", "windows", "rate_units",
@@ -82,6 +84,8 @@ def validate_manifest(manifest, path):
         raise ContractError("manifest requires a nonnegative integer row count")
     if manifest["rate_units"] != RATE_UNITS:
         raise ContractError("manifest rate units do not match the input schema")
+    if manifest["cutoff"] is None:
+        raise ContractError("snapshot cutoff is unknown. Obtain the source observation cutoff before ingestion")
     cutoff = utc_timestamp(manifest["cutoff"])
     windows = validate_windows(manifest["windows"], cutoff)
     if manifest["kind"] == "restricted":

@@ -77,6 +77,19 @@ def test_expired_approval_precedes_input_read(generated_rows, make_snapshot):
         load_snapshot(path)
 
 
+@pytest.mark.parametrize("pending_record", [False, True])
+def test_unknown_cutoff_cannot_trigger_snapshot_read(generated_rows, make_snapshot, pending_record):
+    rows, clients = generated_rows
+    path = make_snapshot(rows[:1], clients, changes={"cutoff": None, "windows": None})
+    path.with_name("snapshot.csv").unlink()
+    if pending_record:
+        draft = json.loads(path.read_bytes())
+        path.write_bytes(json_bytes({"status": "pending", "draft_input_manifest": draft}))
+    message = "pending source cutoff and release approval" if pending_record else "snapshot cutoff is unknown"
+    with pytest.raises(ContractError, match=message):
+        load_snapshot(path)
+
+
 def test_keys_must_be_unique_within_clients(generated_rows, make_snapshot):
     rows, clients = generated_rows
     path = make_snapshot([rows[0], {**rows[0], "client_id": clients[1]}], clients)
