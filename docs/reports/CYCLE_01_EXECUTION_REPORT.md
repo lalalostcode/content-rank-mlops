@@ -105,9 +105,42 @@ The branch contains implementation, tests and aggregate synthetic evidence. Raw 
 
 The local rank and receipt contracts are ready for integration review. Product MVP acceptance remains blocked on the authorized snapshot, a reviewed learned model and the Phase 4–5 end-to-end test. The previously documented Docker Engine and Maven wrapper work belongs to the later integration cycle. [Dependency map](../roadmap/DEPENDENCY_MAP.md) · [Local bootstrap](../LOCAL_BOOTSTRAP.md)
 
-The real release schema and its rounding conventions remain unverified. The CLI materializes one CSV snapshot in memory. Runtime and peak memory at the 30,000-row target, cross-platform byte equality, and temporal performance remain unmeasured. DuckDB lineage guards enforce the declared source boundary. A real-cohort review still needs to examine whether contemporaneous aggregates act as proxies for the observed label. Four synthetic holdout clients provide limited coverage. [Quality budgets](../prd/NON_FUNCTIONAL_REQUIREMENTS.md)
+The real release schema and its rounding conventions remain unverified. The CLI materializes one CSV snapshot in memory. The canonical branch verification below measures runtime and peak memory at the 30,000-row synthetic target. Cross-platform byte equality and temporal performance remain unmeasured. DuckDB lineage guards enforce the declared source boundary. A real-cohort review still needs to examine whether contemporaneous aggregates act as proxies for the observed label. Four synthetic holdout clients provide limited coverage. [Quality budgets](../prd/NON_FUNCTIONAL_REQUIREMENTS.md)
 
 1. Review the two phase decisions and verify the local manifest and receipt digests above.
 2. Obtain data-owner approval, prepare a private manifest and confirm the real source field mappings and windows. Agree on the model acceptance and client-regression thresholds before opening the approved holdout.
 3. Run Cycle 1 against the approved release, document any exposure to the historical cohort, and review per-client misses and regressions. Keep a fresh holdout for any subsequent selection.
 4. Authorize Cycle 2 separately after reviewing the exit evidence. Cycle 1 ends at Phase 3.
+
+## Canonical branch verification
+
+20 November 2026 · `feat/cycle-01-data-ml` based on canonical `main` at `53358f9`. The earlier `cycle-01` branch and fetched `main` contained the same commits. The sibling evidence directory held synthetic outputs and required no source transfer.
+
+Phase 2 now checks whole-number inputs before DuckDB converts them to floating point. Tests reproduce two fractional values that previously rounded to integers. Integer-valued decimal and exponent strings still pass. Phase 3 receipts now record durations for model verification, snapshot loading, feature engineering and ranking output. A failed bundle verification reports only the attempted stage and produces a failed receipt without ranks.
+
+Run the locked test suite from the repository root with `uv run --locked --offline pytest -q --tb=short`. The existing baseline passed 66 tests. The updated suite passed **69 tests in 17.53 seconds** on Python 3.13.9.
+
+| Scope | Result |
+|---|---:|
+| Snapshot validation | 26 passed |
+| Feature engineering | 12 passed |
+| Metrics and splits | 14 passed |
+| Training and scoring | 17 passed |
+
+For the [batch runtime budget](../prd/NON_FUNCTIONAL_REQUIREMENTS.md), generate a fresh fixture with `uv run --locked --offline python -m pipeline.synthetic --benchmark --seed 20261120 --output-dir <local-input-dir>`. Run the earlier ingestion and feature commands with its manifest. Score it twice with the verified synthetic engineered LambdaRank bundle from the original run, using distinct output directories. This measures scoring throughput with generated data. The model-quality evidence comes from the separate holdout above.
+
+Both runs scored all 30,000 eligible items across 32 synthetic clients. Each ran in a fresh Python process on Windows with an Intel Core i5-12450HX, 12 logical processors and approximately 15.71 GiB available memory. The first run followed fixture generation and feature builds, with the OS filesystem cache left in place. The second immediately repeated the first. Wall time includes scoring CLI imports. Windows `PeakWorkingSet64` measured the Python scoring process.
+
+| Measure | First run | Repeat |
+|---|---:|---:|
+| CLI wall time | 3.808 s | 3.687 s |
+| Scoring receipt duration | 1.253 s | 1.221 s |
+| Model verification | 0.024 s | 0.017 s |
+| Snapshot load and validation | 0.838 s | 0.812 s |
+| Feature engineering | 0.140 s | 0.143 s |
+| Rank and write | 0.246 s | 0.245 s |
+| Peak working set | 300.15 MiB | 300.47 MiB |
+
+Independent SHA-256 checks matched both feature files (`fc19854e4ae3e713f4eba7e5460ee17815e8cb2767ab694027b8e5d6ab06c92b`) and both ranking files (`bf47907e82b5f42c9d7d2ec58712186eec9139204eadbd6e81aa97b2f8902f02`). The dataset digest was `597828aafac4f63783889b4d5b3f154fcec1a95bb34a5b5b27b69edac5301806`. Both scoring receipts report the same run ID. Raw snapshots, feature and ranking CSVs, trained bundles, receipts and test output stayed outside Git.
+
+Phase 2 passes the synthetic acceptance checks and still needs verification on an approved source snapshot. Phase 3 remains partial pending a fresh authorized cohort and the ML owner's review of the learned candidate. Branch publication and pull request review follow the canonical repository workflow.
