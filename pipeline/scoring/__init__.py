@@ -24,7 +24,7 @@ def timed_stage(durations, name):
         durations[name] = round(perf_counter() - started, 6)
 
 
-def score_local(manifest, model_manifest, artifact_dir, output_dir):
+def score_local(manifest, model_manifest, artifact_dir, output_dir, *, publish=False):
     started = perf_counter()
     durations = {}
     receipt = {
@@ -65,8 +65,18 @@ def score_local(manifest, model_manifest, artifact_dir, output_dir):
                 scored_clients=int(clients), empty_clients=len(snapshot.clients) - clients,
                 output_filename=RANKS_FILE, output_sha256=digest(payload),
             )
+            if publish:
+                from pipeline.scoring.publication import publish_rankings
+
+                if strategy == "rule":
+                    raise ContractError("publication requires a verified learned model that passed the release gate")
+                with timed_stage(durations, "publish"):
+                    receipt["publication"] = publish_rankings(snapshot, ranked, receipt)
         except ContractError as error:
             failure = error
+            (staging / RANKS_FILE).unlink(missing_ok=True)
+            receipt.pop("output_filename", None)
+            receipt.pop("output_sha256", None)
             receipt.update(status="failed", error=str(error))
         receipt["finished_at"] = iso_utc(datetime.now(UTC))
         receipt["duration_seconds"] = round(perf_counter() - started, 6)
