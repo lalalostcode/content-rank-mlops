@@ -6,6 +6,8 @@
 
 The [canonical repository](https://github.com/lalalostcode/content-rank-mlops) branch is `feat/content-ranking-mvp`, based on `main` at `53358f9d11c596e5f520892a33bcd1912c1bc79c`. The tested implementation revision is `608e5d85da08ad053484f5fc7d7fd3c46931d41e`.
 
+[Draft pull request #2](https://github.com/lalalostcode/content-rank-mlops/pull/2) targets `main` and awaits owner review.
+
 | Phase | Status | Verification or remaining gate |
 |---|---|---|
 | 2 · Data engineering | PARTIAL | The starter file matches its documented 30,000 rows, 44 columns and 32 pseudonymized clients. The CSV checksum and source references are recorded in the ignored local manifest. Ingestion and deterministic features pass with synthetic inputs. The exact FlyRank source cutoff and release approval remain open. |
