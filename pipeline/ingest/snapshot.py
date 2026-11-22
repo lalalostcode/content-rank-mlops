@@ -8,7 +8,8 @@ import duckdb
 import pandas as pd
 
 from pipeline.ingest.contract import (
-    INPUT_SCHEMA, KEYS, NUMERIC, RATE_UNITS, TRANSFORM_VERSION, validate_header, validate_rows,
+    INPUT_SCHEMA, KEYS, NUMERIC, RATE_UNITS, TRANSFORM_VERSION,
+    validate_header, validate_rows, validate_whole_numbers,
 )
 from pipeline.io import (
     ContractError, IDENTIFIER, SHA256, digest, iso_utc, local_filename, matches, outside_git,
@@ -64,6 +65,8 @@ def validate_approval(approval, cutoff):
 
 
 def validate_manifest(manifest, path):
+    if manifest.get("status") == "pending" and "draft_input_manifest" in manifest:
+        raise ContractError("input manifest is pending source cutoff and release approval")
     required = {
         "manifest_version", "snapshot_id", "source_release", "kind", "input_schema", "transform_version",
         "dataset", "sha256", "row_count", "cutoff", "windows", "rate_units",
@@ -81,6 +84,8 @@ def validate_manifest(manifest, path):
         raise ContractError("manifest requires a nonnegative integer row count")
     if manifest["rate_units"] != RATE_UNITS:
         raise ContractError("manifest rate units do not match the input schema")
+    if manifest["cutoff"] is None:
+        raise ContractError("snapshot cutoff is unknown. Obtain the source observation cutoff before ingestion")
     cutoff = utc_timestamp(manifest["cutoff"])
     windows = validate_windows(manifest["windows"], cutoff)
     if manifest["kind"] == "restricted":
@@ -112,6 +117,7 @@ def read_rows(payload, row_count, roster):
         raise ContractError("malformed CSV or missing UTF-8 header") from None
     if any(len(record) != len(columns) for record in records):
         raise ContractError("malformed CSV or incompatible row width")
+    validate_whole_numbers(columns, records)
     text_columns = [f"nullif(trim({name}), '') as {name}" for name in columns if name not in KEYS]
     typed_columns = [
         f"try_cast({name} as double) as {name}, {name} as text_{name}" if name in NUMERIC else name

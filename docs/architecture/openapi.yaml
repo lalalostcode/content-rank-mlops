@@ -1,0 +1,217 @@
+openapi: 3.1.0
+info:
+  title: Content Ranking API
+  version: '1.0'
+servers:
+  - url: http://127.0.0.1:8080/api/v1
+paths:
+  /health:
+    get:
+      operationId: readiness
+      responses:
+        '200': {description: Ready}
+        '503': {description: Database unavailable}
+  /clients:
+    get:
+      operationId: listClients
+      responses:
+        '200':
+          description: Clients visible to the local analyst
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Client'}}
+  /clients/{c}/overview:
+    parameters: [{$ref: '#/components/parameters/Client'}]
+    get:
+      operationId: getOverview
+      parameters:
+        - {name: snapshotId, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Snapshot-scoped item count, observed declines and coverage
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Overview'}
+        '404': {$ref: '#/components/responses/Error'}
+  /clients/{c}/rankings:
+    parameters: [{$ref: '#/components/parameters/Client'}]
+    get:
+      operationId: listRankedItems
+      parameters:
+        - {name: runId, in: query, schema: {type: string}}
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/ReviewStatus'}}
+        - {name: q, in: query, description: Case-insensitive content ID search, schema: {type: string, maxLength: 128}}
+      responses:
+        '200':
+          description: Ordered queue pinned to a published run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runId: {type: [string, 'null']}
+                  items: {type: array, items: {$ref: '#/components/schemas/RankedItem'}}
+                  nextCursor: {type: [string, 'null']}
+                  pending: {type: boolean}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /clients/{c}/rankings/{run}/items/{i}:
+    parameters: [{$ref: '#/components/parameters/Client'}, {$ref: '#/components/parameters/Run'}, {$ref: '#/components/parameters/Item'}]
+    get:
+      operationId: getRankedItem
+      responses:
+        '200':
+          description: Score, observed evidence, reason codes and current case
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RankedItem'}
+        '404': {$ref: '#/components/responses/Error'}
+  /clients/{c}/items/{i}/observations:
+    parameters: [{$ref: '#/components/parameters/Client'}, {$ref: '#/components/parameters/Item'}]
+    get:
+      operationId: listObservations
+      parameters:
+        - {$ref: '#/components/parameters/Case'}
+      responses:
+        '200': {description: Dated observations with provenance and follow-up availability}
+        '404': {$ref: '#/components/responses/Error'}
+  /clients/{c}/items/{i}/actions:
+    parameters: [{$ref: '#/components/parameters/Client'}, {$ref: '#/components/parameters/Item'}]
+    get:
+      operationId: listReviewEvents
+      parameters:
+        - {$ref: '#/components/parameters/Case'}
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200': {description: A page of immutable events with a next cursor}
+        '404': {$ref: '#/components/responses/Error'}
+    post:
+      operationId: recordDecision
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [caseId, runId, decision, expectedVersion]
+              properties:
+                caseId: {type: string, format: uuid}
+                runId: {type: string}
+                decision: {enum: [act, defer, no_action]}
+                expectedVersion: {type: integer, minimum: 0}
+                note: {type: [string, 'null'], maxLength: 1000}
+      responses:
+        '200': {description: Previously recorded event returned for an exact replay}
+        '201': {description: Decision recorded with the resulting case state and event ID}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /clients/{c}/items/{i}/status:
+    parameters: [{$ref: '#/components/parameters/Client'}, {$ref: '#/components/parameters/Item'}]
+    patch:
+      operationId: transitionReviewCase
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, expectedVersion]
+              properties:
+                status: {enum: [IN_REVIEW, RESOLVED]}
+                expectedVersion: {type: integer, minimum: 0}
+                caseId: {type: string, format: uuid}
+                runId: {type: string}
+                candidateRunId: {type: string}
+              oneOf:
+                - required: [caseId, runId]
+                - required: [candidateRunId]
+      responses:
+        '200': {description: Case state and ID of the immutable status event}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /clients/{c}/runs/{run}:
+    parameters: [{$ref: '#/components/parameters/Client'}, {$ref: '#/components/parameters/Run'}]
+    get:
+      operationId: getScoringRun
+      responses:
+        '200': {description: Published counts, observation cutoff, input digest, model ID and timestamps}
+        '404': {$ref: '#/components/responses/Error'}
+  /clients/{c}/models/{modelId}:
+    parameters:
+      - {$ref: '#/components/parameters/Client'}
+      - {name: modelId, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getModel
+      responses:
+        '200': {description: Model ID, artifact digest, feature schema and optional registry reference}
+        '404': {$ref: '#/components/responses/Error'}
+components:
+  parameters:
+    Client: {name: c, in: path, required: true, schema: {type: string}}
+    Run: {name: run, in: path, required: true, schema: {type: string}}
+    Item: {name: i, in: path, required: true, schema: {type: string}}
+    Case: {name: caseId, in: query, schema: {type: string, format: uuid}}
+    Cursor: {name: cursor, in: query, schema: {type: string}}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+    IdempotencyKey: {name: Idempotency-Key, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 200}}
+  responses:
+    Error:
+      description: Invalid request, missing resource or state conflict
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message, correlationId]
+            properties:
+              code: {type: string}
+              message: {type: string}
+              correlationId: {type: string}
+  schemas:
+    Client:
+      type: object
+      required: [id, label]
+      properties:
+        id: {type: string}
+        label: {type: string}
+    Overview:
+      type: object
+      properties:
+        snapshotId: {type: [string, 'null']}
+        cutoff: {type: [string, 'null'], format: date-time}
+        itemCount: {type: integer}
+        decliningCount: {type: [integer, 'null']}
+        coverage: {type: [number, 'null']}
+    ReviewStatus:
+      enum: [OPEN, IN_REVIEW, ACTION_TAKEN, DEFERRED, NO_ACTION, RESOLVED]
+    RankedItem:
+      type: object
+      properties:
+        contentId: {type: string}
+        position: {type: integer, minimum: 1}
+        score: {type: number}
+        cutoff: {type: string, format: date-time}
+        snapshotId: {type: string}
+        observationWindowStart: {type: string, format: date-time}
+        observationWindowEnd: {type: string, format: date-time}
+        metrics: {type: object, additionalProperties: {type: [number, 'null']}}
+        reasonCodes:
+          type: array
+          items:
+            type: object
+            properties:
+              code: {type: string}
+              metric: {type: string}
+              value: {type: [number, 'null']}
+              unit: {type: string}
+        issueType: {const: DECLINE_PRIORITY}
+        reviewStatus: {$ref: '#/components/schemas/ReviewStatus'}
+        version: {type: integer, minimum: 0}
+        caseId: {type: [string, 'null'], format: uuid}
+        candidateRunId: {type: [string, 'null']}

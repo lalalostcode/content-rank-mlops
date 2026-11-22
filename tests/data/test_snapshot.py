@@ -29,6 +29,8 @@ def test_valid_fixture_and_profile(generated_rows, make_snapshot):
     ({"competition": 25}, "competition"),
     ({"ctr": 0.5, "clicks_90d": 10, "impressions_90d": 20}, "CTR percent reconciliation"),
     ({"content_age_days": 90.2}, "content_age_days"),
+    ({"content_age_days": "90.000000000000000001"}, "content_age_days"),
+    ({"word_count": "9007199254740990.5"}, "word_count"),
     ({"content_age_days": None}, "missing content_age_days"),
     ({"days_with_sessions": 91}, "days_with_sessions"),
     ({"word_count": "nan"}, "word_count"),
@@ -40,6 +42,14 @@ def test_invalid_input_rows_are_rejected(generated_rows, make_snapshot, changes,
     path = make_snapshot([{**rows[0], **changes}], clients)
     with pytest.raises(ContractError, match=error):
         load_snapshot(path)
+
+
+def test_whole_counts_preserve_supported_decimal_and_exponent_text(generated_rows, make_snapshot):
+    rows, clients = generated_rows
+    path = make_snapshot([{**rows[0], "content_age_days": "9.0e1", "word_count": "9007199254740991.0"}], clients)
+    row = load_snapshot(path).rows.iloc[0]
+    assert row["content_age_days"] == 90
+    assert row["word_count"] == 2**53 - 1
 
 
 @pytest.mark.parametrize(("changes", "error"), [
@@ -64,6 +74,19 @@ def test_expired_approval_precedes_input_read(generated_rows, make_snapshot):
     path = make_snapshot(rows[:1], clients, changes={"kind": "restricted", "approval": approval})
     path.with_name("snapshot.csv").unlink()
     with pytest.raises(ContractError, match="approval has expired"):
+        load_snapshot(path)
+
+
+@pytest.mark.parametrize("pending_record", [False, True])
+def test_unknown_cutoff_cannot_trigger_snapshot_read(generated_rows, make_snapshot, pending_record):
+    rows, clients = generated_rows
+    path = make_snapshot(rows[:1], clients, changes={"cutoff": None, "windows": None})
+    path.with_name("snapshot.csv").unlink()
+    if pending_record:
+        draft = json.loads(path.read_bytes())
+        path.write_bytes(json_bytes({"status": "pending", "draft_input_manifest": draft}))
+    message = "pending source cutoff and release approval" if pending_record else "snapshot cutoff is unknown"
+    with pytest.raises(ContractError, match=message):
         load_snapshot(path)
 
 

@@ -1,5 +1,6 @@
 """Verify a local model manifest and write one complete client ranking batch."""
 
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from time import perf_counter
 
@@ -14,13 +15,26 @@ RANKS_FILE = "rankings.csv"
 RECEIPT_FILE = "run-receipt.json"
 
 
-def score_local(manifest, model_manifest, artifact_dir, output_dir):
+@contextmanager
+def timed_stage(durations, name):
     started = perf_counter()
-    receipt = {"receipt_version": 1, "started_at": iso_utc(datetime.now(UTC))}
+    try:
+        yield
+    finally:
+        durations[name] = round(perf_counter() - started, 6)
+
+
+def score_local(manifest, model_manifest, artifact_dir, output_dir, *, publish=False):
+    started = perf_counter()
+    durations = {}
+    receipt = {
+        "receipt_version": 1, "started_at": iso_utc(datetime.now(UTC)), "stage_duration_seconds": durations,
+    }
     failure = None
     with new_output_directory(output_dir) as staging:
         try:
-            bundle = load_verified_bundle(model_manifest, artifact_dir, stage="final")
+            with timed_stage(durations, "verify_model"):
+                bundle = load_verified_bundle(model_manifest, artifact_dir, stage="final")
             pinned = bundle.manifest
             strategy = pinned["release"]["strategy"]
             receipt["model"] = {
@@ -31,13 +45,16 @@ def score_local(manifest, model_manifest, artifact_dir, output_dir):
             receipt["features"] = {name: pinned[name] for name in (
                 "feature_schema_version", "feature_schema_sha256", "transform_version", "transform_sha256",
             )}
-            snapshot = load_snapshot(manifest, expected_kind=receipt["model"]["training_kind"])
+            with timed_stage(durations, "load_snapshot"):
+                snapshot = load_snapshot(manifest, expected_kind=receipt["model"]["training_kind"])
             receipt["input"] = snapshot.identity
             receipt["input_rows"] = len(snapshot.rows)
-            frame = build_features(snapshot)
-            ranked = ordered_ranks(frame, bundle.rankers.predict(frame, strategy))
-            payload = ranked.to_csv(index=False, lineterminator="\n", float_format="%.17g").encode()
-            (staging / RANKS_FILE).write_bytes(payload)
+            with timed_stage(durations, "build_features"):
+                frame = build_features(snapshot)
+            with timed_stage(durations, "rank_and_write"):
+                ranked = ordered_ranks(frame, bundle.rankers.predict(frame, strategy))
+                payload = ranked.to_csv(index=False, lineterminator="\n", float_format="%.17g").encode()
+                (staging / RANKS_FILE).write_bytes(payload)
             clients = ranked["client_id"].nunique()
             run_key = {
                 "input_manifest": snapshot.identity["manifest_sha256"], "bundle": pinned["bundle_sha256"],
@@ -48,8 +65,18 @@ def score_local(manifest, model_manifest, artifact_dir, output_dir):
                 scored_clients=int(clients), empty_clients=len(snapshot.clients) - clients,
                 output_filename=RANKS_FILE, output_sha256=digest(payload),
             )
+            if publish:
+                from pipeline.scoring.publication import publish_rankings
+
+                if strategy == "rule":
+                    raise ContractError("publication requires a verified learned model that passed the release gate")
+                with timed_stage(durations, "publish"):
+                    receipt["publication"] = publish_rankings(snapshot, ranked, receipt)
         except ContractError as error:
             failure = error
+            (staging / RANKS_FILE).unlink(missing_ok=True)
+            receipt.pop("output_filename", None)
+            receipt.pop("output_sha256", None)
             receipt.update(status="failed", error=str(error))
         receipt["finished_at"] = iso_utc(datetime.now(UTC))
         receipt["duration_seconds"] = round(perf_counter() - started, 6)

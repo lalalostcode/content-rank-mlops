@@ -7,7 +7,7 @@ Base /api/v1. Local trusted analyst identity supplied by server configuration. B
 |GET /health|200 ready or 503 unavailable|
 |GET /clients|200 array of {id,label}|
 |GET /clients/{c}/overview|optional snapshotId, returns cutoff, itemCount, decliningCount, coverage|
-|GET /clients/{c}/rankings|optional runId, status, cursor, limit 1–100 (default 50). Returns runId, items, nextCursor. The status filter uses the effective case at the requested run's cutoff. No publication returns empty items and pending state|
+|GET /clients/{c}/rankings|optional runId, status, cursor, q (case-insensitive content ID search, up to 128 characters), limit 1–100 (default 50). Returns runId, items, nextCursor and pending. The status filter uses the effective case at the requested run's cutoff. No publication returns empty items and pending state|
 |GET /clients/{c}/rankings/{run}/items/{i}|position, score, reason codes and observed value, unit, window and snapshot ID. Current items include issue type, review status, version and either caseId or candidateRunId. Historical details retain their recorded evidence and link to item history|
 |GET /clients/{c}/items/{i}/observations|ordered observations with snapshot ID, UTC cutoff, source provenance, metric definition, values, units and window bounds. Optional caseId returns follow-up availability and comparable measurements linked to that case's action event|
 |POST /clients/{c}/items/{i}/actions|caseId, reviewed run ID, decision, optional note up to 1000 chars and expectedVersion. Idempotency-Key required. 201 event and resulting state, matching replay 200. Conflicting reuse, stale version or invalid transition returns 409|

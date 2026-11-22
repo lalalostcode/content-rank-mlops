@@ -1,0 +1,17 @@
+server:
+  address: 127.0.0.1
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/content_ranking
+    username: content_app
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+    serialization:
+      write-dates-as-timestamps: false
+ranking:
+  analyst: Local Analyst
