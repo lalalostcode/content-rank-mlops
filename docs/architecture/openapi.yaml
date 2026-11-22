@@ -42,7 +42,7 @@ paths:
         - {$ref: '#/components/parameters/Cursor'}
         - {$ref: '#/components/parameters/Limit'}
         - {name: status, in: query, schema: {$ref: '#/components/schemas/ReviewStatus'}}
-        - {name: search, in: query, schema: {type: string}}
+        - {name: q, in: query, description: Case-insensitive content ID search, schema: {type: string, maxLength: 128}}
       responses:
         '200':
           description: Ordered queue pinned to a published run
